@@ -1,0 +1,31 @@
+# Projeto: Grafo de Conhecimento Indutivo — Reforma Tributaria (GraphSAGE)
+# Python 3.13.5 | CPU-only (sem GPU NVIDIA disponivel)
+# Instalar torch via: --index-url https://download.pytorch.org/whl/cpu
+
+# --- Nucleo Deep Learning ---
+torch
+torch_geometric
+
+# --- Dados / analise ---
+numpy
+pandas
+scipy
+scikit-learn
+networkx
+
+# --- Texto / embeddings ---
+sentence-transformers
+rank_bm25
+
+# --- Coleta ---
+requests
+beautifulsoup4
+lxml
+pypdf
+
+# --- Visualizacao ---
+matplotlib
+seaborn
+
+# --- Notebooks ---
+jupyterlab
