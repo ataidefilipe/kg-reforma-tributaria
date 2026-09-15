@@ -1,127 +1,161 @@
 # Projeto de Deep Learning — Disciplina (Mestrado)
 
-**Status: ideia fechada.** O histórico completo de brainstorm, outras 4 ideias avaliadas e o processo de decisão estão em [outras-ideias/BRAINSTORM-IDEIAS.md](outras-ideias/BRAINSTORM-IDEIAS.md).
+**Última revisão:** 2026-09-15
 
-## Objetivo principal
+> **Aviso de versão.** Este documento foi reescrito em 15/09/2026. A versão anterior descrevia um
+> projeto de escopo menor (só GraphSAGE + predição de link) e um corpus desatualizado — foi escrita
+> quando o PLP 108/2024 ainda tramitava e os regulamentos do IBS/CBS não existiam. O que mudou e por
+> quê está em [docs/04-reenquadramento.md](docs/04-reenquadramento.md). A versão original permanece
+> no histórico do git. O brainstorm inicial está em
+> [outras-ideias/](outras-ideias/) e foi marcado como desconsiderado.
 
-Construir um **grafo de conhecimento sobre a Reforma Tributária brasileira**, alimentado por normas legais e documentos técnicos de entidades, usando uma arquitetura de **GNN indutiva (GraphSAGE)** para permitir a **criação e manutenção de nós a partir de novas entradas** (novos documentos publicados) **sem a necessidade de retreinar o modelo do zero**.
+---
 
-Esse é o problema central do projeto de mestrado (populações/entradas sintéticas alimentando uma base de conhecimento em grafo), aplicado aqui a um domínio real, atual e bem delimitado.
+## 1. Pergunta de pesquisa
 
-## Natureza do projeto (regras da disciplina)
-- Projeto de cadeira: não é artigo científico nem exercício simples. Parte de um **código bom já existente** (baseline) e evolui numa direção própria.
-- O que importa é a **análise**, não o código em si.
-- **Limite: no máximo 8 páginas** no relatório final.
-- Os 4 pilares avaliados: **Concepção, Experimentação, Análise, Resultado**.
-- Passo obrigatório: **reproduzir o baseline sem modificações antes de alterar qualquer coisa**.
+> A construção incremental de um grafo de conhecimento a partir de documentos legais se beneficia de
+> **validação semântica** e **pós-processamento estrutural (GNN)**, ou a **extração incremental
+> direta por LLM** já é suficiente?
 
-## Por que este domínio (Reforma Tributária)
+O domínio é a Reforma Tributária brasileira: corpus público, delimitado, com relações genuínas
+(uma lei de fato regulamenta uma emenda; um regulamento de fato cita um artigo) e cronologia real
+que permite testar chegada incremental de documentos sem simulação artificial.
 
-Comparado a "documentos de política pública" em geral (universo enorme e vago) ou a personas sintéticas do Persona Hub (conteúdo sem relações reais), a Reforma Tributária oferece:
-- **Corpus limitado e conhecido** — poucas normas principais + dezenas (não milhares) de documentos técnicos, tamanho gerenciável para validar manualmente.
-- **Relações genuínas, não inventadas** — uma nota técnica de fato cita um artigo de lei; uma lei de fato regulamenta uma emenda constitucional. A aresta do grafo é extraída da realidade, não é um critério de similaridade artificial (esse era o problema identificado com o Persona Hub).
-- **Atualidade real** — 2026 é o ano de teste do novo sistema (IBS/CBS), então **novos documentos continuam sendo publicados durante o próprio período do projeto**, permitindo testar a capacidade indutiva do GraphSAGE com dados que chegam de verdade, não uma simulação artificial de "novo nó".
+### Relação com o TCC
 
-## Mapeamento do domínio
+Este projeto é ensaio metodológico para a pergunta do TCC:
 
-### Estrutura normativa (nós "lei", com hierarquia real)
-- **EC 132/2023** — Emenda Constitucional que criou a reforma; substitui ICMS/ISS/PIS/COFINS por IBS/CBS. É o "nó raiz" da hierarquia normativa.
-- **LC 214/2025** (sancionada a partir do PLP 68/2024) — institui o IBS e a CBS; **499 artigos + 23 anexos**; regulamenta diretamente a EC 132/2023.
-- **PLP 108/2024** — regulamenta o Comitê Gestor do IBS, o processo administrativo fiscal e a distribuição da arrecadação; **197 artigos**; em fase final de tramitação/sanção.
-- Cada artigo pode ser tratado como sub-nó (ex. um artigo específico sendo citado por uma nota técnica), dando granularidade adicional ao grafo.
+> Uma arquitetura híbrida baseada em LLMs, validação semântica e pós-processamento de grafos melhora
+> a qualidade da construção incremental de knowledge graphs corporativos a partir de POPs sintéticos,
+> quando comparada a abordagens de extração direta e ao pipeline estático com validação?
 
-### Documentos técnicos de entidades (nós "nota técnica"/"entendimento")
-- [Notas Técnicas do CCiF — Centro de Cidadania Fiscal](https://ccif.com.br/categoria/notas-reforma-tributaria/) — entidade que formulou a proposta original da reforma.
-- Notas técnicas conjuntas **Receita Federal + Comitê Gestor do IBS (CGIBS)** — especificações técnicas de documentos fiscais (NF-e, NFC-e, CT-e, etc.) para operacionalizar IBS/CBS a partir de 2026.
-- Posicionamentos técnicos de entidades setoriais: CNI, [CBIC](https://cbic.org.br/), Conasems, entre outras — análises comentando artigos específicos das leis acima.
+Mesma estrutura de três braços, corpus real no lugar de POPs sintéticos. A intenção é descobrir
+agora — com dado público, em dois meses — onde cada braço quebra.
 
-### Relações a modelar (arestas reais)
-- `EC_132 --regulamentada_por--> LC_214`
-- `LC_214 --regulamentada_por--> PLP_108` (ou relação equivalente entre partes complementares)
-- `Nota_técnica_CCiF --interpreta/cita--> Artigo_X_da_LC_214`
-- `Posição_CNI --critica/comenta--> Artigo_Y_do_PLP_108`
+---
 
-### Disponibilidade do texto
-- **Normas oficiais** (EC, LC, PLP): texto integral disponível via [Planalto](https://www.planalto.gov.br/), Câmara e Senado (mesmo mecanismo de `urlInteiroTeor` da API de Dados Abertos da Câmara).
-- **Notas técnicas de entidades:** publicadas nos sites das próprias entidades (CCiF, CBIC, etc.), em PDF/HTML — universo pequeno, viável coletar manualmente ou via scraping simples.
+## 2. Desenho experimental
 
-## Baselines (artigo/código base)
+### Três braços
 
-Como nenhuma peça pronta faz tudo isso junta, o projeto combina três blocos, cada um com base oficial:
+| Braço | Composição | Acha tipo A | Acha tipo B | Acha tipo C |
+|---|---|---|---|---|
+| **1. Extração direta** | GLiNER / LLM → triplas | quase tudo | parcial | **não** |
+| **2. + validação semântica** | dedup, canonicalização, filtro | melhor | melhor | **não** |
+| **3. + pós-processamento** | GraphSAGE sobre o grafo do braço 2 | igual ao 2 | igual ao 2 | **sim** |
 
-1. **Extração de entidades/relações do texto → triplas do grafo.**
-   Opção recomendada para o prazo da disciplina: **GLiNER-Relex** — modelo zero-shot (não exige fine-tuning) que extrai entidades e relações (triplas sujeito-relação-objeto) num único passo. Alternativas: spaCy + `textacy` (mais simples, sem custo de API/GPU) ou um LLM com prompt estruturado (mais flexível, mais caro).
-   Referência de estado da arte para justificar a escolha: [LLM-empowered Knowledge Graph Construction: A Survey (arXiv 2510.20345)](https://arxiv.org/html/2510.20345v1).
+### Baselines — a hipótese nula
 
-2. **Features de nó.**
-   Embedding de texto leve (ex. `sentence-transformers`) sobre a ementa/resumo de cada norma ou nota técnica.
+As features de nó já são embeddings de texto. Logo, recuperação sobre elas é a hipótese nula exata:
 
-3. **Núcleo de Deep Learning — GraphSAGE (base principal) + CaseLink (referência recente do domínio jurídico).**
-   - **Base principal:** [GraphSAGE — Inductive Representation Learning on Large Graphs (Hamilton et al., NeurIPS 2017)](https://github.com/williamleif/GraphSAGE) — código oficial dos autores (Stanford). Ao contrário de métodos transdutivos (que exigem retreinar tudo quando um nó novo aparece), aprende funções de agregação que geram embeddings para nós nunca vistos no treino. Implementação prática: [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/) já traz `SAGEConv`/`torch_geometric.nn.models.GraphSAGE` prontos — não é necessário reimplementar o paper, só montar o pipeline de dados em volta.
-   - **Referência recente e do mesmo domínio (fortalece a resposta a "existem artigos recentes usando DL nesse problema"):** [CaseLink — Inductive Graph Learning for Legal Case Retrieval (Tang et al., SIGIR 2024)](https://github.com/yanran-tang/CaseLink) — código oficial, publicado em 2024, aplica exatamente **aprendizado indutivo em grafo (a mesma família do GraphSAGE) a documentos jurídicos**, usando um "Global Case Graph" para capturar relações semânticas e de citação entre casos. Serve como validação de que a combinação "GNN indutivo + domínio legal" já é uma linha de pesquisa ativa e recente, não uma aplicação forçada.
+```
+H0: a estrutura do grafo não acrescenta informação além do conteúdo textual dos artigos.
+H1: a agregação de vizinhança melhora a recuperação de relações normativas.
+```
 
-**Passo obrigatório antes de inovar:** reproduzir o GraphSAGE oficial (nos datasets de benchmark do próprio paper, ex. Cora/PPI) sem modificações, para garantir que o pipeline de treino está correto antes de aplicá-lo ao grafo da reforma tributária.
+Comparadores: **BM25** (lexical) e **retrieval denso** (cosseno sobre as features).
 
-## Checklist "Artigo/Código Base" (respondido)
+O artigo base faz essa mesma comparação: a linha `Raw features` da Tabela 1 é precisamente esse
+baseline, e o próprio artigo reporta o ganho da estrutura sobre ela (+45% em PPI supervisionado).
+Nosso desenho reproduz o desenho experimental do artigo base, não inventa um.
 
-### O que estou interessado em pesquisar?
-Como um grafo de conhecimento pode ser construído e **mantido de forma incremental** — permitindo a chegada de novas entradas (novos documentos) sem exigir retreinamento completo do modelo — aplicado a um domínio real de documentos legais/técnicos interligados (a Reforma Tributária brasileira).
+> **Alerta registrado:** o BM25 pode vencer os métodos neurais. Texto normativo tem sobreposição
+> lexical altíssima e vocabulário padronizado. Se vencer, é o achado mais interessante do relatório,
+> não um problema a contornar (`AGENT.MD` §20).
 
-### Existem artigos utilizando Deep Learning nesse problema?
-**Sim, em duas camadas:**
-- **O método em si (aprendizado indutivo em grafos)** é uma linha de pesquisa consolidada desde o GraphSAGE (NeurIPS 2017), com desenvolvimentos recentes em grafos dinâmicos/temporais (ex. Temporal Graph Networks, GraphMixer, EvolveGCN — ver [Comprehensive Survey of Dynamic GNNs, arXiv 2405.00476](https://arxiv.org/pdf/2405.00476)), mostrando que o tema segue ativo.
-- **A aplicação a documentos jurídicos/legislativos com GNN** também é uma linha de pesquisa ativa e recente, não uma combinação forçada: [CaseLink (SIGIR 2024)](https://github.com/yanran-tang/CaseLink) faz aprendizado indutivo em grafo para recuperação de casos jurídicos; [CaseGNN (arXiv 2312.11229)](https://arxiv.org/pdf/2312.11229) usa GNN sobre grafos de texto jurídico; há também trabalho em predição de citação legal via GNN heterogêneo ("The Missing Link: Joint Legal Citation Prediction Using Heterogeneous Graph Enrichment") e em gestão de conhecimento legislativo via grafos. **Conclusão: Deep Learning é claramente adequado ao problema — não é uma zona sem precedente.**
+---
 
-### Você tem infraestrutura para suportar as exigências de hardware desse artigo/código?
-**Sim, as exigências são leves:**
-- GraphSAGE via PyTorch Geometric: para grafos pequenos/médios (nosso caso — dezenas a poucas centenas de nós), o treino usa tipicamente **até ~8GB de RAM em CPU** ou **4-8GB de VRAM em GPU** — perfeitamente viável em notebook comum ou em Colab/Kaggle gratuitos, sem necessidade de GPU dedicada de alto desempenho.
-- GLiNER-Relex (extração de entidades): modelo baseado em encoder (não autoregressivo), leve, roda em CPU ou GPU modesta.
-- Nenhuma etapa do pipeline exige treinar ou rodar um LLM grande localmente — o ponto mais pesado seria usar um LLM via API para extração (opcional, alternativa ao GLiNER), o que é custo de tokens, não de hardware.
-- **Ainda a definir:** qual hardware específico será usado (notebook próprio, Colab, Kaggle) — recomendação é usar Colab/Kaggle gratuito como padrão, já que nenhuma etapa exige mais que isso.
+## 3. Dados
 
-### Os artigos são recentes? Têm código-fonte recente? Está no GitHub? É a implementação original do autor? PyTorch ou TensorFlow? Alternativas?
+### Corpus normativo — ~1.950 artigos
 
-| | GraphSAGE (base principal) | CaseLink (referência de domínio) |
+| Documento | Publicação | Artigos | Partição temporal |
+|---|---|---|---|
+| EC 132/2023 | 20/12/2023 | ~20 | treino |
+| LC 214/2025 | 16/01/2025 | 499 | treino |
+| LC 227/2026 (ex-PLP 108/2024) | 13/01/2026 | ~197 | teste indutivo 1 |
+| Decreto 12.955/2026 — Regulamento da CBS | 29/04/2026 | 620 | teste indutivo 2 |
+| Resolução CGIBS 6/2026 — Regulamento do IBS | 30/04/2026 | 617 | teste indutivo 2 |
+
+**Granularidade do nó: artigo** (decisão D1). Nível-documento daria ~6 nós, insuficiente para GNN.
+
+**Split temporal** (decisão D2). Split aleatório vazaria informação e invalidaria a tese indutiva.
+
+### Dois níveis de dificuldade
+
+Exigência do slide 9 do professor, atendida dentro do próprio corpus normativo:
+
+| Tipo de aresta | Dificuldade | Ground truth |
 |---|---|---|
-| **Ano** | 2017 (NeurIPS) — não é recente, mas é o paper fundador do aprendizado indutivo em grafos, ainda amplamente usado e ensinado como baseline padrão da área | 2024 (SIGIR) — recente |
-| **Código no GitHub** | ✅ [williamleif/GraphSAGE](https://github.com/williamleif/GraphSAGE) | ✅ [yanran-tang/CaseLink](https://github.com/yanran-tang/CaseLink) |
-| **Implementação original do autor** | ✅ Sim (Stanford, autores do paper) | ✅ Sim |
-| **Framework/versão** | TensorFlow (implementação original de 2017 — desatualizada em termos de versão do framework) | A confirmar ao acessar o repositório (padrão da área de GNN em 2024 é PyTorch/PyTorch Geometric) |
-| **Implementações alternativas** | ✅ Sim, e é a que será usada: [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/) mantém `SAGEConv`/`GraphSAGE` como módulo oficial da biblioteca, ativamente mantido, em PyTorch atual | Não necessário — o código já está em estado ativo |
+| **A** — citação explícita qualificada | fácil | regex, precisão ~100% (a medir) |
+| **C** — relação semântica não escrita | difícil | co-citação entre os dois regulamentos |
 
-**Decisão sobre framework:** usar a implementação de GraphSAGE do **PyTorch Geometric** (não o código original em TensorFlow de 2017) como base prática de trabalho — isso resolve o problema de "código antigo/desatualizado" mantendo fidelidade total à arquitetura e às garantias teóricas do paper original, já que o PyG é a implementação de referência mais usada e citada pela comunidade atualmente. O CaseLink permanece como referência de comparação/contexto para justificar a escolha do domínio, não como base de código a reproduzir diretamente (seu problema — recuperação de casos jurídicos — é diferente do nosso — grafo de normas/documentos técnicos).
+### Dataset (b) — meta esticada
 
-## Pipeline proposto
+Notas técnicas de entidades (CCiF, RFB/CGIBS, CNI, CBIC). **Fora do caminho crítico** (decisão Q6).
+Vira decisão medida na semana 3: contar quantas arestas reais as 30 notas do CCiF produzem contra o
+corpus normativo. ≥100 → entra como `(b-mínimo)`; <30 → corta.
 
-1. **Coleta:** baixar os textos das normas principais (EC 132, LC 214, PLP 108) e um conjunto inicial de notas técnicas/posicionamentos de entidades (CCiF, Receita Federal/CGIBS, CNI, CBIC, etc.).
-2. **Extração de entidades e relações:** aplicar GLiNER-Relex (ou alternativa escolhida) sobre os textos para gerar as triplas (nó, relação, nó).
-3. **Construção do grafo:** cada norma/artigo/nota técnica vira um nó; as triplas extraídas viram arestas; features de nó = embedding de texto da ementa/resumo.
-4. **Validação manual de amostra:** como o universo é pequeno, checar manualmente uma amostra das triplas extraídas para medir a qualidade da extração antes de treinar o modelo.
-5. **Treino do GraphSAGE:** para uma tarefa concreta — predição de link (a relação X existe entre os nós A e B?) e/ou classificação de nó (categoria do documento).
-6. **Teste do requisito central (nó novo sem retreino):** incorporar um documento genuinamente novo (uma nota técnica publicada depois do treino, ou uma norma nova de 2026) e gerar seu embedding via as funções de agregação já aprendidas, sem retreinar a rede. Avaliar a qualidade desse embedding (ex. acurácia de predição de link para esse nó novo) comparada a um baseline transdutivo que exigiria retreino completo.
+---
 
-## Datasets (dificuldade distinta, conforme exigido)
-- **(a) Núcleo normativo** — EC 132 + LC 214 + PLP 108 e seus artigos: menor, mais controlado, relações bem definidas (regulamentação).
-- **(b) Núcleo + notas técnicas de entidades**: maior, mais ruidoso, relações de citação/interpretação mais variadas e ambíguas de extrair.
+## 4. Artigo e código base
 
-## Métricas
-- Métricas do próprio paper GraphSAGE (acurácia de classificação/predição de nó indutiva, custo de inferência para nó novo vs. retreino completo).
-- Métricas de qualidade do grafo (densidade, conectividade).
-- Métricas de manutenção: quantos nós/relações são corretamente integrados a partir de novas entradas, com validação manual de amostra.
-- Salvar métricas por época em `.csv` para análise posterior (Pandas/Seaborn).
+| Papel | Trabalho | Por quê |
+|---|---|---|
+| **Base a reproduzir** | GraphSAGE (NeurIPS 2017) | Reproduzível de graça em 34 s; fornece o laço de treino com épocas que a disciplina espera; é o método indutivo fundador |
+| **Adversário** | iText2KG (WISE 2024) | Afirma construir KG incremental *"without post-processing"* — a tese contrária à nossa |
+| **Domínio e métricas** | CaseLink (SIGIR 2024) | GNN indutivo em documentos jurídicos; justifica as métricas de ranking |
+| **Faixa de referência** | GAT (ICLR 2018) | Reporta `GraphSAGE*` = 0,768 em PPI, contra 0,598 do artigo original |
 
-## Inovação proposta
-Construir, do zero, um pipeline que liga três peças que hoje existem separadas — extração de entidades via LLM, construção de grafo, e aprendizado indutivo via GraphSAGE — aplicado a um domínio real (Reforma Tributária) onde as relações do grafo são genuínas, e demonstrar empiricamente que documentos novos publicados durante o próprio andamento da reforma podem ser incorporados ao grafo sem retreinar o modelo do zero.
+### Passo obrigatório — cumprido
 
-## Pontos de atenção / riscos conhecidos
-- **Risco principal: esforço de engenharia**, não de disponibilidade de dado — o pipeline inteiro (extração → grafo → GraphSAGE) é novo e precisa ser construído do zero.
-- Mitigação: validar uma versão pequena de ponta a ponta o quanto antes (ex. 20-30 nós, só com as 3 normas principais) antes de escalar para as notas técnicas, reduzindo o risco de descobrir um problema de integração tarde demais.
-- Onde processar: extração de entidades e embeddings de texto são leves (CPU ou GPU modesta); GraphSAGE via PyTorch Geometric também é leve comparado a treinar um LLM — Colab/Kaggle resolve.
+O slide 6 exige reproduzir o artigo base **sem modificações** antes de qualquer alteração.
+Concluído: ver [reports/analysis/R02-reproducao-fiel-ppi.md](reports/analysis/R02-reproducao-fiel-ppi.md).
 
-## Próximos passos
-1. Levantar a lista concreta de documentos disponíveis (quantas notas técnicas existem hoje de cada entidade) para dimensionar o dataset (b).
-2. Montar a versão mínima do pipeline (3 normas principais, poucas dezenas de nós) e validar de ponta a ponta.
-3. Reproduzir o GraphSAGE oficial num benchmark padrão (Cora/PPI) sem modificações.
-4. Aplicar o pipeline completo ao dataset (a) e depois (b).
-5. Rodar o teste de "nó novo sem retreino" com um documento genuinamente novo.
-6. Analisar resultados (quantitativo + qualitativo) e escrever o relatório (máx. 8 páginas) cobrindo concepção, experimentação, análise e resultado.
+O mecanismo do artigo foi **reimplementado do zero** (`sage_manual.py`, `sage_sampler.py`) e validado
+com equivalência exata contra o `SAGEConv` do PyG. Isso atende também à exigência do mesmo slide de
+"ser capaz de entender razoavelmente bem o artigo/código base".
+
+---
+
+## 5. Métricas
+
+Camada dupla, porque a tarefa da aplicação não é a mesma do artigo base:
+
+| Camada | Métrica | Comparável a |
+|---|---|---|
+| Reprodução (PPI) | micro-F1 | Tabela 1 do GraphSAGE |
+| Qualidade das triplas (3 braços) | precisão / recall / F1 | iText2KG |
+| Recuperação de arestas | Hits@k, MRR, AUC | CaseLink |
+| Custo de manutenção | tempo e chamadas de API por documento novo | argumento prático |
+
+Métricas por época gravadas em `.csv` (dica explícita do slide 9).
+
+---
+
+## 6. Infraestrutura
+
+- **CPU-only.** Não há GPU NVIDIA na máquina; a reprodução roda em 34 s.
+- **Colab (GPU)** apenas para GLiNER e varreduras de hiperparâmetro.
+- **Custo de API:** US$ 12–61 no projeto inteiro, conforme o modelo
+  ([docs/05-orcamento-api.md](docs/05-orcamento-api.md)). Custo não é restrição.
+
+---
+
+## 7. Riscos principais
+
+| Risco | Onde |
+|---|---|
+| **Segmentação por artigo** — regex ingênuo erra ~20% (captura artigos de outras leis citados em alterações) | semanas 2-3, risco nº 1 |
+| **Estrutura espelhada não confirmada** — o ground truth do tipo C depende dela | portão na semana 3 |
+| **Vazamento de citação na feature** — mitigação obrigatória por masking | decisão D6 |
+
+Registro completo: [docs/06-plano-execucao.md](docs/06-plano-execucao.md).
+
+---
+
+## 8. Entregável
+
+Relatório de até 8 páginas, avaliado em **Concepção, Experimentação, Análise, Resultado**.
+Estrutura proposta e mapeamento aos pilares em
+[docs/06-plano-execucao.md](docs/06-plano-execucao.md) §S8.

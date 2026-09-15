@@ -1,44 +1,151 @@
 # Proposta de Projeto — Especialização em Deep Learning
 
-## Título da proposta
-**Grafo de Conhecimento Indutivo para a Reforma Tributária Brasileira: Criação e Manutenção de Nós a partir de Novos Documentos com GraphSAGE**
+
+## Título
+
+**Construção Incremental de Grafo de Conhecimento a partir de Documentos Legais: estudo comparativo
+entre extração direta por LLM, validação semântica e pós-processamento com GraphSAGE**
 
 ## Equipe
-- Filipe Ataíde — filipeataide@gmail.com
 
-## Link para o artigo base
-Hamilton, W. L., Ying, R., & Leskovec, J. (2017). **Inductive Representation Learning on Large Graphs.** NeurIPS 2017.
-- arXiv: https://arxiv.org/abs/1706.02216
+Filipe Ataíde — filipeataide@gmail.com
 
-## Link para o código base
-Repositório oficial dos autores (Stanford), TensorFlow:
-- https://github.com/williamleif/GraphSAGE
+## Artigo base
 
-*(Observação: para a implementação prática do pipeline, será usada a versão de referência do GraphSAGE disponível em [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/) — `torch_geometric.nn.models.GraphSAGE`/`SAGEConv` —, mantendo fidelidade à arquitetura e aos experimentos do artigo original antes de qualquer modificação.)*
+Hamilton, W. L., Ying, R., & Leskovec, J. (2017). **Inductive Representation Learning on Large
+Graphs.** NeurIPS 2017. — [arXiv:1706.02216](https://arxiv.org/abs/1706.02216)
 
-## Quais dados serão usados para validar a proposta
+## Código base
 
-Dois conjuntos de dados, com dificuldade crescente, construídos a partir de documentos públicos sobre a Reforma Tributária brasileira:
+Repositório oficial dos autores (Stanford, TensorFlow):
+<https://github.com/williamleif/GraphSAGE>
 
-**Dataset (a) — Núcleo normativo (mais controlado):**
-- Emenda Constitucional 132/2023 (EC 132/2023) — texto integral via [Planalto](https://www.planalto.gov.br/).
-- Lei Complementar 214/2025 (originada do PLP 68/2024) — 499 artigos + 23 anexos, institui IBS e CBS.
-- PLP 108/2024 — 197 artigos, regulamenta o Comitê Gestor do IBS.
-- Relações extraídas: hierarquia de regulamentação entre a emenda e as leis complementares, e entre artigos internos.
+O mecanismo do artigo (Algoritmos 1 e 2) foi **reimplementado do zero em PyTorch** e validado com
+equivalência numérica exata contra o `SAGEConv` do PyTorch Geometric. Isso atende à exigência de
+compreender o código base e resolve a obsolescência do código original de 2017.
 
-**Dataset (b) — Núcleo normativo + documentos técnicos de entidades (mais ruidoso e desafiador):**
-- Notas técnicas do [CCiF — Centro de Cidadania Fiscal](https://ccif.com.br/categoria/notas-reforma-tributaria/) (entidade que formulou a proposta original da reforma).
-- Notas técnicas conjuntas da Receita Federal e do Comitê Gestor do IBS (CGIBS) sobre documentos fiscais eletrônicos (NF-e, NFC-e, CT-e, etc.).
-- Posicionamentos técnicos de entidades setoriais (CNI, CBIC, Conasems, entre outras) comentando artigos específicos das normas acima.
-- Relações extraídas: citação/interpretação de artigos específicos pelas entidades.
+## Trabalhos relacionados usados como comparação
 
-Ambos os conjuntos serão usados também para o teste central da proposta: a chegada de **documentos genuinamente novos**, publicados ao longo de 2026 (ano de teste do novo sistema IBS/CBS), permitindo avaliar a capacidade indutiva do GraphSAGE com dados reais, sem necessidade de simulação artificial de "novo nó".
-
-## Resumo da proposta
-
-A Reforma Tributária brasileira (EC 132/2023 e sua regulamentação) gerou um conjunto crescente e interligado de normas legais e documentos técnicos publicados por diferentes entidades, cujas relações (regulamentação, citação, interpretação) hoje não estão organizadas de forma estruturada e consultável. Este projeto propõe construir um **grafo de conhecimento** desse domínio e usar o **GraphSAGE** — uma arquitetura de rede neural em grafos (GNN) capaz de gerar embeddings para nós nunca vistos durante o treino, sem necessidade de retreinamento completo — para permitir que o grafo seja **atualizado de forma incremental** conforme novos documentos são publicados.
-
-O pipeline proposto parte da reprodução do GraphSAGE original (em benchmarks padrão do próprio artigo) e evolui em três frentes que hoje não existem integradas: (1) extração automática de entidades e relações a partir do texto das normas e notas técnicas (via modelo zero-shot, ex. GLiNER-Relex), (2) construção do grafo com features de nó baseadas em embeddings de texto, e (3) treinamento do GraphSAGE para tarefas de predição de link e classificação de nó sobre esse grafo. A contribuição central do projeto é demonstrar empiricamente que documentos novos, publicados durante o próprio período de execução do trabalho, podem ser incorporados ao grafo sem retreinar o modelo — validando na prática o requisito de manutenção incremental de bases de conhecimento que motiva a proposta.
+| Trabalho | Papel na proposta |
+|---|---|
+| **iText2KG** (WISE 2024) — [arXiv:2409.03284](https://arxiv.org/abs/2409.03284) | Adversário. Afirma construir KG incremental *"without post-processing"* — a hipótese contrária à desta proposta |
+| **CaseLink** (SIGIR 2024) | Referência de domínio (GNN indutivo em documentos jurídicos) e das métricas de ranking |
+| **GAT** (ICLR 2018) — [arXiv:1710.10903](https://arxiv.org/abs/1710.10903) | Estabelece a faixa conhecida do GraphSAGE em PPI (`GraphSAGE*` = 0,768) |
 
 ---
-*Documento de trabalho completo (histórico de ideias avaliadas e descartadas) em [PROJETO.md](PROJETO.md) e [outras-ideias/BRAINSTORM-IDEIAS.md](outras-ideias/BRAINSTORM-IDEIAS.md).*
+
+## Pergunta de pesquisa
+
+> A construção incremental de um grafo de conhecimento a partir de documentos legais se beneficia de
+> **validação semântica** e **pós-processamento estrutural (GNN)**, ou a **extração incremental
+> direta por LLM** já é suficiente?
+
+Hipóteses:
+
+```
+H0: a estrutura do grafo não acrescenta informação além do conteúdo textual dos artigos.
+H1: a agregação de vizinhança melhora a recuperação de relações normativas.
+```
+
+---
+
+## Desenho experimental
+
+### Três braços
+
+| Braço | Composição | Representa |
+|---|---|---|
+| 1. Extração direta | GLiNER / LLM → triplas → grafo | a tese do iText2KG |
+| 2. + validação semântica | deduplicação, canonicalização, filtro de plausibilidade | pipeline estático com validação |
+| 3. + pós-processamento | GraphSAGE propõe arestas faltantes e pontua as implausíveis | arquitetura híbrida |
+
+### Baselines (a hipótese nula)
+
+**BM25** (lexical) e **retrieval denso** (cosseno sobre as features de texto, sem grafo). Este
+último corresponde exatamente à linha `Raw features` da Tabela 1 do artigo base — ou seja, a
+comparação reproduz o desenho experimental do próprio GraphSAGE.
+
+---
+
+## Dados
+
+### Corpus normativo — ~1.950 artigos, split temporal
+
+| Documento | Publicação | Artigos | Partição |
+|---|---|---|---|
+| EC 132/2023 | 20/12/2023 | ~20 | treino |
+| LC 214/2025 | 16/01/2025 | 499 | treino |
+| LC 227/2026 | 13/01/2026 | ~197 | teste indutivo 1 |
+| Decreto 12.955/2026 — Regulamento da CBS | 29/04/2026 | 620 | teste indutivo 2 |
+| Resolução CGIBS 6/2026 — Regulamento do IBS | 30/04/2026 | 617 | teste indutivo 2 |
+
+Todos os textos são públicos (Planalto e CGIBS). **Nenhum nó de teste existe no grafo de treino** —
+a capacidade indutiva é avaliada com documentos que de fato não existiam no momento do treino, sem
+simulação artificial de "nó novo".
+
+### Dois níveis de dificuldade
+
+| Tipo de aresta | Dificuldade | Ground truth |
+|---|---|---|
+| **A** — citação explícita qualificada ("art. 12 da LC nº 214, de 2025") | fácil | regex, automático |
+| **C** — relação semântica não escrita em lugar nenhum | difícil | co-citação, automático |
+
+Conjunto adicional (meta esticada): notas técnicas de entidades — CCiF, RFB/CGIBS, CNI, CBIC —
+com relações de interpretação em vez de regulamentação. Entra apenas se um levantamento medido
+mostrar volume suficiente de arestas.
+
+---
+
+## Métricas
+
+| Camada | Métrica | Comparável a |
+|---|---|---|
+| Reprodução do baseline (PPI) | micro-F1 | Tabela 1 do artigo base |
+| Qualidade das triplas (3 braços) | precisão / recall / F1 | iText2KG |
+| Recuperação de arestas | Hits@k, MRR, AUC | CaseLink |
+| Custo de manutenção | tempo e chamadas de API por documento novo | argumento prático |
+
+Métricas por época são gravadas em `.csv` para análise posterior.
+
+---
+
+## Infraestrutura
+
+CPU-only para todo o caminho principal (a reprodução do baseline roda em 34 s). Colab com GPU apenas
+para o extrator GLiNER e para varreduras de hiperparâmetro. Custo de API estimado entre US$ 12 e
+US$ 61 no projeto inteiro, com Batch API e prompt caching.
+
+---
+
+## Estado da reprodução do baseline
+
+Concluída antes de qualquer modificação, conforme exigido.
+
+| Fonte | PPI micro-F1 |
+|---|---|
+| Artigo original, GraphSAGE-mean | 0,598 |
+| **Esta reprodução** | **0,738** |
+| GAT (2018), `GraphSAGE*` | 0,768 |
+
+O valor obtido não coincide com o do artigo. Quatro ablações (amostragem, normalização L2,
+subamostragem de grau, learning rate) mostraram que a diferença **não** é explicada por desvios de
+fidelidade — removê-los aumenta a F1, não reduz. A causa permanece não determinada e está declarada
+como tal.
+
+---
+
+## Contribuição proposta
+
+Não se propõe um método novo. Propõe-se um **estudo comparativo** com hipótese falseável, aplicando
+três arquiteturas de construção incremental de grafo de conhecimento a um corpus legal real, com
+avaliação automática viabilizada por *ground truth* derivado de citações normativas explícitas.
+
+O resultado pode ser negativo — o pós-processamento pode não melhorar a qualidade, ou o BM25 pode
+superar os métodos neurais. Nesse caso, o resultado negativo é reportado, não contornado.
+
+---
+
+*Documentação completa em [docs/](docs/). Definição do projeto em [PROJETO.md](PROJETO.md).
+Plano de execução em [docs/06-plano-execucao.md](docs/06-plano-execucao.md).*
+
+*Histórico das decisões de escopo em [docs/04-reenquadramento.md](docs/04-reenquadramento.md).*

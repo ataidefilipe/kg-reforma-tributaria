@@ -1,5 +1,17 @@
 # R01 — Primeira execução do GraphSAGE em PPI
 
+> ## ⚠️ DOCUMENTO SUPERADO
+>
+> Esta execução **não reproduzia o mecanismo do artigo**: fazia forward *full-batch*, sem a
+> amostragem de vizinhança, sem normalização L2 por camada e sem subamostragem de grau.
+> Além disso a arquitetura estava errada (normalização L2 aplicada aos logits).
+>
+> Substituído por [R02-reproducao-fiel-ppi.md](R02-reproducao-fiel-ppi.md).
+> Mantido como registro do processo (`AGENT.MD` §16), não como resultado válido.
+
+---
+
+
 **Data:** 2026-09-15
 **Script:** `src/modeling/baseline_graphsage.py`
 **Métricas por época:** `reports/analysis/baseline_graphsage_ppi_seed42.csv`

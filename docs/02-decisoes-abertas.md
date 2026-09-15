@@ -1,6 +1,6 @@
 # Decisões Abertas e Registro de Decisões
 
-**Última atualização:** 2026-09-15
+**Última atualização:** 2026-09-15 — D7, D8 e D9 fechados; Q1–Q6 respondidos (ver final do arquivo)
 
 Classificação conforme `AGENT.MD` §17: **Técnica** (agente decide) / **Analítica** (agente recomenda,
 usuário valida) / **Negócio** (usuário decide).
@@ -20,7 +20,7 @@ usuário valida) / **Negócio** (usuário decide).
 
 ---
 
-## D7 — Baseline de recuperação ("RAG") — **RECOMENDADO, aguarda validação**
+## D7 — Baseline de recuperação ("RAG") — ✅ **APROVADO** (Q4, 15/09/2026)
 
 **Pergunta do usuário:** faria sentido comparar com um RAG normal?
 
@@ -84,7 +84,12 @@ não usar vector DB (com ~2.000 artigos, `numpy` + cosseno resolve). No relatór
 
 ---
 
-## D8 — Papel do GLiNER-Relex — **EM ABERTO, precisa de decisão**
+## D8 — Papel do GLiNER-Relex — ✅ **RESOLVIDO** (Q5, 15/09/2026)
+
+> **Decisão:** regex como ground truth + **GLiNER e LLM ambos** como extratores do braço 1.
+> Custo não é restrição (US$ 12–61 no projeto). "Extrator" vira mais um eixo de comparação.
+> A análise original abaixo previa escolher entre as opções A/B/C; o orçamento medido
+> tornou a escolha desnecessária.
 
 Citações normativas explícitas ("nos termos do art. 12 da Lei Complementar nº 214, de 2025") são
 extraíveis por **regex** com precisão próxima de 100% em texto legal brasileiro. Isso torna o
@@ -107,7 +112,9 @@ concentrada no lado GNN. Isso é um ganho de rigor e uma perda de "novidade apar
 
 ---
 
-## D9 — Tarefa principal do GraphSAGE — **EM ABERTO**
+## D9 — Tarefa principal do GraphSAGE — ✅ **RESOLVIDO** (15/09/2026)
+
+> **Decisão: predição de link como tarefa única.**
 
 `PROJETO.md` cita predição de link **e/ou** classificação de nó. Com 8 páginas de limite, fazer as
 duas bem é improvável.

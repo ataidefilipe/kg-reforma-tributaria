@@ -2,6 +2,9 @@
 
 **Fonte:** `5. Projeto.pdf` — Cleber Zanchettin (cz@cin.ufpe.br), CIn.AI — 9 slides.
 **Data da auditoria:** 2026-09-15
+**Última revisão:** 2026-09-15 — GAP 2 fechado; GAPs 3, 4 e 5 resolvidos pelo cenário C.
+Estado atualizado abaixo. GAP 1 permanece mitigado, não eliminado.
+
 
 Este documento é o critério de aceitação do projeto. Toda decisão deve ser rastreável até um item daqui.
 
@@ -21,8 +24,8 @@ Este documento é o critério de aceitação do projeto. Toda decisão deve ser 
 | Requisito | Status | Observação |
 |---|---|---|
 | Ser algo do seu interesse | ✅ | Alinhado ao tema do mestrado (manutenção incremental de base de conhecimento) |
-| Tempo que você pode dedicar | ❓ | **Não sabemos.** Ver Q1 |
-| Deadline para entrega | ❓ | **Não sabemos.** Ver Q1 — é a variável que mais afeta o escopo |
+| Tempo que você pode dedicar | ✅ | 2 meses, desenvolvimento assistido por agentes |
+| Deadline para entrega | ⚠️ | ~10/11/2026 (derivado de "2 meses"). **Data exata não confirmada** |
 | Dados disponíveis | ✅ | ~1.950 artigos + 30 NTs CCiF. Ver `01-levantamento-corpus.md` |
 | Recursos computacionais | ✅ | CPU local + Colab. Ver §"Onde executar" |
 
@@ -33,26 +36,40 @@ Este documento é o critério de aceitação do projeto. Toda decisão deve ser 
 | Requisito | Status | Observação |
 |---|---|---|
 | Partir de um BOM artigo/código base | ✅ | GraphSAGE (NeurIPS 2017), 15k+ citações, baseline canônico da área |
-| **Ser capaz de entender razoavelmente bem o artigo/código base** | ⚠️ | **GAP 2** — ver abaixo |
-| **Reproduzir os resultados SEM MODIFICAÇÕES antes de qualquer coisa** | ⚠️ | Script escrito e rodando, mas com infidelidade a corrigir — **GAP 2** |
-| A partir disso, partir para ajustes e melhorias | ⏳ | Depende do anterior |
+| **Ser capaz de entender razoavelmente bem o artigo/código base** | ✅ | **GAP 2 FECHADO** — mecanismo reimplementado do zero, equivalência exata com `SAGEConv` |
+| **Reproduzir os resultados SEM MODIFICAÇÕES antes de qualquer coisa** | ✅ | **GAP 2 FECHADO** — ver `reports/analysis/R02-reproducao-fiel-ppi.md` |
+| A partir disso, partir para ajustes e melhorias | ⏳ | Liberado. Começa nas semanas 2-3 (ingestão) |
 
-### GAP 2 — Fidelidade ao artigo base e domínio sobre o código
+### GAP 2 — FECHADO em 2026-09-15
 
-Dois problemas, um meu e um do plano:
+**O problema era:** o primeiro script fazia forward *full-batch*, sem a amostragem de vizinhança —
+que é a contribuição central do artigo — e tratava o `SAGEConv` do PyG como caixa-preta, o que não
+demonstra entendimento do código base.
 
-**(a) Meu script está infiel ao artigo.** A contribuição central do GraphSAGE **não é** a camada de
-agregação — é o **treinamento em minibatch com amostragem de vizinhança de tamanho fixo**
-(`S1=25, S2=10` no artigo), que é o que torna o método escalável e indutivo na prática.
-O `baseline_graphsage.py` que escrevi faz forward *full-batch*. Funciona, dá números, **mas não
-reproduz o mecanismo do artigo**. Precisa ser reescrito com `NeighborLoader`.
+**O que foi feito:** o mecanismo do artigo foi reimplementado do zero.
 
-**(b) O plano trata `SAGEConv` como caixa-preta.** O professor exige entendimento do código base.
-Chamar uma classe do PyG não demonstra isso.
+| Arquivo | Conteúdo | Validação |
+|---|---|---|
+| `src/modeling/sage_manual.py` | Agregador mean (Algoritmo 1) | equivalência **exata** com `SAGEConv` — diferença 0,000e+00 em 3 testes |
+| `src/modeling/sage_sampler.py` | Amostragem de vizinhança (Algoritmo 2) | 4 testes: vizinhos válidos, reposição, norma L2, shapes |
+| `src/modeling/reproduce_ppi.py` | Treino e avaliação em PPI | varredura de lr do artigo + 3 ablações |
 
-**Correção proposta:** implementar a agregação manualmente (~30 linhas) e validar contra o `SAGEConv`
-do PyG — se os dois produzirem o mesmo resultado, isso *é* a demonstração de que o artigo foi entendido,
-e vira meia página forte na seção de Concepção.
+A reimplementação deixou de ser opcional também por um motivo prático: o `NeighborLoader` do PyG
+exige `pyg-lib` ou `torch-sparse`, que **não têm wheel para Python 3.13 + torch 2.14 no Windows** e
+falham ao compilar.
+
+**Três detalhes de fidelidade descobertos no processo** — todos estavam errados na primeira
+tentativa, e todos são omitidos pelo uso padrão da biblioteca:
+
+1. A ordem de `S1` e `S2` é invertida em relação à intuição (1º salto = S2 = 10; 2º salto = S1 = 25).
+2. Normalização L2 a cada camada (Algoritmo 1, linha 7) — `SAGEConv` tem `normalize=False` por padrão.
+3. Subamostragem de grau ≤ 128 como pré-processamento (no PPI o grau máximo é 720).
+
+**Resultado:** test micro-F1 **0,738** contra 0,598 do artigo. A diferença **não** é explicada pelos
+pontos de fidelidade acima — as ablações mostram que removê-los *aumenta* a F1. Declarado como não
+determinado, com a faixa conhecida da literatura (GAT reporta `GraphSAGE*` = 0,768).
+
+Detalhes: [`reports/analysis/R02-reproducao-fiel-ppi.md`](../reports/analysis/R02-reproducao-fiel-ppi.md).
 
 ---
 
@@ -71,14 +88,14 @@ e vira meia página forte na seção de Concepção.
 
 | Requisito | Status | Observação |
 |---|---|---|
-| Qual evolução/inovação será proposta? | ⚠️ | **GAP 3** |
+| Qual evolução/inovação será proposta? | ✅ | **GAP 3 RESOLVIDO** pelo cenário C — estudo comparativo de três braços |
 | O que se propõe é algo não conhecido? | ⚠️ | **Honestamente: não.** O método é conhecido; a aplicação é nova |
 | **Pretende fazer um estudo comparativo?** | ✅ | **Esta é a saída.** Ver GAP 3 |
-| Há tempo hábil para adaptar + experimentos + ANÁLISES + escrever? | ❓ | Depende de Q1 |
-| **Quais alternativas de evolução pretende testar?** | ❌ | **GAP 4** |
+| Há tempo hábil para adaptar + experimentos + ANÁLISES + escrever? | ⚠️ | 2 meses, folga ~zero. Ver `06-plano-execucao.md` |
+| **Quais alternativas de evolução pretende testar?** | ✅ | **GAP 4 RESOLVIDO** — três braços + agregador + profundidade K + dois extratores |
 | Por que supõe que irá funcionar bem? | ⚠️ | Precisa de justificativa explícita no relatório |
 | Está sendo aplicado em outros casos? | ✅ | CaseLink aplica GNN indutivo a documentos jurídicos |
-| Está confortável em alterar o código base? | ⚠️ | Ligado ao GAP 2 |
+| Está confortável em alterar o código base? | ✅ | Código base reimplementado e validado |
 
 ### GAP 3 — A "inovação" é fraca sozinha; o estudo comparativo resolve
 
@@ -118,16 +135,16 @@ e geram tabela comparativa direta com a Tabela 1 original.
 
 | Requisito | Status | Observação |
 |---|---|---|
-| Quantos datasets? | ✅ | 2 próprios (a, b) + 1-2 de reprodução (PPI, Cora) |
+| Quantos datasets? | ✅ | Reprodução: PPI. Aplicação: Reforma tipo A (fácil) e tipo C (difícil). (b) é meta esticada — Q6 |
 | Tem acesso? | ✅ | Todos públicos |
-| São suficientemente diferentes? | ✅ | (a) normativo limpo × (b) notas técnicas ruidosas |
-| Têm graus de dificuldade distintos? | ✅ | (a) relações explícitas por regex × (b) relações semânticas |
+| São suficientemente diferentes? | ✅ | tipo A (citação explícita, regex) × tipo C (relação não escrita, co-citação) |
+| Têm graus de dificuldade distintos? | ✅ | sim — e ambos com ground truth automático |
 | **Esses datasets são usados no artigo base e em outros relacionados?** | ❌ | **GAP 1** |
-| Que métricas pretende usar? | ⚠️ | **GAP 5** |
+| Que métricas pretende usar? | ✅ | **GAP 5 RESOLVIDO** — camada dupla: micro-F1 na reprodução, ranking na aplicação |
 | Tem código pronto para calculá-las? | ✅ | `sklearn.metrics` + implementação própria de Hits@k/MRR |
-| **Essas métricas são usadas no artigo base e em outros relacionados?** | ⚠️ | **GAP 5** |
+| **Essas métricas são usadas no artigo base e em outros relacionados?** | ✅ | micro-F1 do GraphSAGE; ranking do CaseLink |
 | São relevantes para o problema? | ✅ | |
-| **Dica: salvar métricas por época em CSV** | ✅ | Já implementado em `baseline_graphsage.py` |
+| **Dica: salvar métricas por época em CSV** | ✅ | `reproduce_ppi.py` → `reports/analysis/*.csv` (6 arquivos já gerados) |
 
 ### GAP 1 — Nossos datasets não existem na literatura
 
